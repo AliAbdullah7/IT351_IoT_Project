@@ -14,7 +14,7 @@ from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
 
 # =====================================================
-# Page configuration
+# Page Configuration
 # =====================================================
 st.set_page_config(
     page_title="IoT Sensor Data Prediction Dashboard",
@@ -25,13 +25,13 @@ st.set_page_config(
 
 
 # =====================================================
-# Custom styling
+# Styling
 # =====================================================
 st.markdown(
     """
     <style>
     .block-container {
-        max-width: 1180px;
+        max-width: 1150px;
         padding-top: 2rem;
         padding-bottom: 2rem;
         margin-left: auto;
@@ -39,83 +39,60 @@ st.markdown(
     }
 
     .main-title {
-        font-size: 2.4rem;
+        font-size: 2.5rem;
         font-weight: 800;
-        margin-bottom: 0.2rem;
-        text-align: left;
+        margin-bottom: 0.3rem;
     }
 
     .subtitle {
-        font-size: 1rem;
-        color: inherit;
+        font-size: 1.05rem;
         opacity: 0.85;
-        margin-bottom: 1.2rem;
-        text-align: left;
+        margin-bottom: 1.5rem;
     }
 
-    .info-card {
-        background: rgba(120, 120, 120, 0.12);
-        border: 1px solid rgba(120, 120, 120, 0.28);
-        border-radius: 14px;
+    .section-card {
+        background: rgba(120, 120, 120, 0.10);
+        border: 1px solid rgba(120, 120, 120, 0.22);
+        border-radius: 16px;
         padding: 18px 20px;
-        margin: 10px 0 22px 0;
-        color: inherit;
+        margin: 12px 0 20px 0;
         line-height: 1.7;
     }
 
-    .small-card {
-        background: rgba(120, 120, 120, 0.10);
-        border: 1px solid rgba(120, 120, 120, 0.22);
-        border-radius: 12px;
-        padding: 14px 16px;
-        margin-bottom: 10px;
-        color: inherit;
-    }
-
-    .prediction-box {
+    .prediction-card {
         background: rgba(40, 167, 69, 0.18);
         border: 1px solid rgba(40, 167, 69, 0.45);
-        border-radius: 12px;
-        padding: 16px;
-        margin-top: 16px;
-        font-size: 1.1rem;
+        border-radius: 16px;
+        padding: 20px;
+        margin-top: 14px;
+        font-size: 1.25rem;
         font-weight: 700;
-        color: inherit;
     }
 
-    .warning-box {
-        background: rgba(255, 193, 7, 0.16);
+    .warning-card {
+        background: rgba(255, 193, 7, 0.15);
         border: 1px solid rgba(255, 193, 7, 0.45);
-        border-radius: 12px;
-        padding: 14px;
-        margin-top: 12px;
-        color: inherit;
+        border-radius: 16px;
+        padding: 18px;
+        margin-top: 14px;
     }
 
     div[data-testid="stMetric"] {
         background: rgba(120, 120, 120, 0.10);
-        border: 1px solid rgba(120, 120, 120, 0.20);
-        padding: 14px;
-        border-radius: 14px;
-    }
-
-    div[data-testid="stDataFrame"] {
-        border-radius: 12px;
-        overflow: hidden;
+        border: 1px solid rgba(120, 120, 120, 0.22);
+        padding: 16px;
+        border-radius: 16px;
     }
 
     section[data-testid="stSidebar"] {
         border-right: 1px solid rgba(120, 120, 120, 0.25);
     }
 
-    section[data-testid="stSidebar"] .block-container {
-        padding-top: 2rem;
-    }
-
     .stButton > button {
         width: 100%;
         border-radius: 10px;
         font-weight: 700;
+        height: 3rem;
     }
     </style>
     """,
@@ -124,14 +101,14 @@ st.markdown(
 
 
 # =====================================================
-# Load and prepare data
+# Load Dataset
 # =====================================================
 @st.cache_data
 def load_data():
     db_path = Path("weather.db")
 
     if not db_path.exists():
-        st.error("weather.db was not found. Please upload weather.db to the same GitHub repository as app.py.")
+        st.error("weather.db was not found. Please upload weather.db in the same GitHub repository as app.py.")
         st.stop()
 
     conn = sqlite3.connect(db_path)
@@ -141,6 +118,9 @@ def load_data():
     return df
 
 
+# =====================================================
+# Preprocessing
+# =====================================================
 @st.cache_data
 def preprocess_data(df):
     data = df.copy()
@@ -153,9 +133,14 @@ def preprocess_data(df):
     data["month"] = data["timestamp"].dt.month
     data["day_of_week"] = data["timestamp"].dt.dayofweek
 
-    return data.sort_values("timestamp")
+    data = data.sort_values("timestamp")
+
+    return data
 
 
+# =====================================================
+# Train ML Model
+# =====================================================
 @st.cache_resource
 def train_model(data):
     features = ["humidity", "hour", "day_of_month", "month", "day_of_week"]
@@ -189,18 +174,57 @@ def train_model(data):
         "Predicted Temperature": y_pred
     })
 
-    feature_importance = pd.DataFrame({
-        "Feature": features,
-        "Importance": model.feature_importances_
-    }).sort_values("Importance", ascending=False)
+    results["Actual Temperature"] = results["Actual Temperature"].round(2)
+    results["Predicted Temperature"] = results["Predicted Temperature"].round(2)
 
-    return model, X_test, y_test, y_pred, mae, rmse, r2, results, feature_importance
+    return model, X_test, y_test, y_pred, mae, rmse, r2, results
 
 
+# =====================================================
+# Helper Functions
+# =====================================================
+def create_line_chart(x, y, title, xlabel, ylabel):
+    fig, ax = plt.subplots(figsize=(11, 4.5))
+    ax.plot(x, y, linewidth=1.6)
+    ax.set_title(title, fontsize=14)
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+    ax.grid(True, alpha=0.3)
+    ax.tick_params(axis="x", rotation=35)
+    fig.tight_layout()
+    return fig
+
+
+def create_actual_vs_predicted_chart(y_test, y_pred):
+    fig, ax = plt.subplots(figsize=(7.5, 5))
+
+    ax.scatter(y_test, y_pred, alpha=0.75)
+
+    min_value = min(float(y_test.min()), float(y_pred.min()))
+    max_value = max(float(y_test.max()), float(y_pred.max()))
+
+    ax.plot(
+        [min_value, max_value],
+        [min_value, max_value],
+        linestyle="--",
+        linewidth=2
+    )
+
+    ax.set_title("Actual vs Predicted Temperature", fontsize=14)
+    ax.set_xlabel("Actual Temperature (C)")
+    ax.set_ylabel("Predicted Temperature (C)")
+    ax.grid(True, alpha=0.3)
+    fig.tight_layout()
+
+    return fig
+
+
+# =====================================================
+# Load and Prepare Data
+# =====================================================
 df_raw = load_data()
 df = preprocess_data(df_raw)
-
-model, X_test, y_test, y_pred, mae, rmse, r2, results, feature_importance = train_model(df)
+model, X_test, y_test, y_pred, mae, rmse, r2, results = train_model(df)
 
 
 # =====================================================
@@ -231,23 +255,14 @@ day_names = {
     6: "Sunday"
 }
 
-feature_names = {
-    "humidity": "Humidity",
-    "hour": "Hour of Day",
-    "day_of_month": "Day of Month",
-    "month": "Month",
-    "day_of_week": "Day of Week",
-    "temperature": "Temperature"
-}
-
 
 # =====================================================
-# Sidebar prediction controls
+# Sidebar Prediction Section
 # =====================================================
-st.sidebar.title("Prediction Controls")
-st.sidebar.write("Enter sensor and time values, then click the button to predict temperature.")
+st.sidebar.title("Temperature Prediction")
+st.sidebar.write("Enter the sensor and time values, then click Predict.")
 
-humidity_value = st.sidebar.number_input(
+humidity_input = st.sidebar.number_input(
     "Humidity",
     min_value=float(df["humidity"].min()),
     max_value=float(df["humidity"].max()),
@@ -255,14 +270,14 @@ humidity_value = st.sidebar.number_input(
     step=0.5
 )
 
-hour_value = st.sidebar.selectbox(
+hour_input = st.sidebar.selectbox(
     "Hour of Day",
     options=list(range(24)),
     index=12,
     format_func=lambda x: f"{x:02d}:00"
 )
 
-day_value = st.sidebar.number_input(
+day_input = st.sidebar.number_input(
     "Day of Month",
     min_value=1,
     max_value=31,
@@ -270,45 +285,48 @@ day_value = st.sidebar.number_input(
     step=1
 )
 
-month_value = st.sidebar.selectbox(
+month_input = st.sidebar.selectbox(
     "Month",
     options=list(month_names.keys()),
     index=7,
     format_func=lambda x: month_names[x]
 )
 
-day_week_value = st.sidebar.selectbox(
+day_week_input = st.sidebar.selectbox(
     "Day of Week",
     options=list(day_names.keys()),
     index=0,
     format_func=lambda x: day_names[x]
 )
 
-predict_clicked = st.sidebar.button("Predict Temperature")
+predict_button = st.sidebar.button("Predict Temperature")
 
-if predict_clicked:
-    input_data = pd.DataFrame({
-        "humidity": [humidity_value],
-        "hour": [hour_value],
-        "day_of_month": [day_value],
-        "month": [month_value],
-        "day_of_week": [day_week_value]
+if predict_button:
+    input_df = pd.DataFrame({
+        "humidity": [humidity_input],
+        "hour": [hour_input],
+        "day_of_month": [day_input],
+        "month": [month_input],
+        "day_of_week": [day_week_input]
     })
 
-    st.session_state["prediction"] = float(model.predict(input_data)[0])
-    st.session_state["prediction_inputs"] = {
-        "Humidity": humidity_value,
-        "Hour of Day": f"{hour_value:02d}:00",
-        "Day of Month": day_value,
-        "Month": month_names[month_value],
-        "Day of Week": day_names[day_week_value]
+    prediction = float(model.predict(input_df)[0])
+
+    st.session_state["prediction"] = prediction
+    st.session_state["inputs"] = {
+        "Humidity": humidity_input,
+        "Hour": f"{hour_input:02d}:00",
+        "Day of Month": day_input,
+        "Month": month_names[month_input],
+        "Day of Week": day_names[day_week_input]
     }
 
 if "prediction" in st.session_state:
     st.sidebar.markdown(
         f"""
-        <div class="prediction-box">
-            Predicted Temperature:<br>{st.session_state["prediction"]:.2f} C
+        <div class="prediction-card">
+            Predicted Temperature:<br>
+            {st.session_state["prediction"]:.2f} C
         </div>
         """,
         unsafe_allow_html=True
@@ -316,8 +334,8 @@ if "prediction" in st.session_state:
 else:
     st.sidebar.markdown(
         """
-        <div class="warning-box">
-            No prediction yet. Click <b>Predict Temperature</b> to show the result.
+        <div class="warning-card">
+            No prediction yet. Click Predict Temperature.
         </div>
         """,
         unsafe_allow_html=True
@@ -325,7 +343,7 @@ else:
 
 
 # =====================================================
-# Header
+# Main Dashboard Header
 # =====================================================
 st.markdown(
     '<div class="main-title">IoT Sensor Data Prediction Dashboard</div>',
@@ -333,414 +351,179 @@ st.markdown(
 )
 
 st.markdown(
-    '<div class="subtitle">An interactive dashboard for analyzing IoT weather sensor readings and predicting temperature using machine learning.</div>',
+    '<div class="subtitle">A machine learning dashboard for analyzing IoT sensor data and predicting temperature.</div>',
     unsafe_allow_html=True
 )
 
 
 # =====================================================
-# KPI cards
+# Section 1: Dataset Summary
 # =====================================================
-col1, col2, col3, col4 = st.columns(4)
+st.header("1. Dataset Summary")
 
-with col1:
+summary_col1, summary_col2, summary_col3, summary_col4 = st.columns(4)
+
+with summary_col1:
     st.metric("Records", f"{df.shape[0]:,}")
 
-with col2:
-    st.metric("Features Used", "5")
+with summary_col2:
+    sensor_type = df["sensor_type"].iloc[0] if "sensor_type" in df.columns else "Unknown"
+    st.metric("Sensor Type", sensor_type)
 
-with col3:
-    sensor_name = df["sensor_type"].iloc[0] if "sensor_type" in df.columns else "Unknown"
-    st.metric("Sensor Type", sensor_name)
+with summary_col3:
+    temp_min = df["temperature"].min()
+    temp_max = df["temperature"].max()
+    st.metric("Temperature Range", f"{temp_min:.1f} - {temp_max:.1f} C")
 
-with col4:
-    st.metric("Latest Temp", f"{df['temperature'].iloc[-1]:.2f} C")
+with summary_col4:
+    hum_min = df["humidity"].min()
+    hum_max = df["humidity"].max()
+    st.metric("Humidity Range", f"{hum_min:.0f} - {hum_max:.0f}")
 
-m1, m2, m3 = st.columns(3)
+st.markdown(
+    """
+    <div class="section-card">
+    This dashboard uses IoT weather sensor readings. The main values used are timestamp, humidity, and temperature. 
+    The timestamp was converted into time features such as hour, day, month, and day of week for machine learning prediction.
+    </div>
+    """,
+    unsafe_allow_html=True
+)
 
-with m1:
+
+# =====================================================
+# Section 2: Sensor Data Trends
+# =====================================================
+st.header("2. Sensor Data Trends")
+
+st.markdown(
+    """
+    <div class="section-card">
+    These charts show how the sensor readings changed over time. They help explain the general behavior of the IoT sensor data.
+    </div>
+    """,
+    unsafe_allow_html=True
+)
+
+trend_option = st.radio(
+    "Select chart to display",
+    ["Temperature Trend", "Humidity Trend", "Both"],
+    horizontal=True
+)
+
+if trend_option in ["Temperature Trend", "Both"]:
+    st.subheader("Temperature Trend Over Time")
+    temp_chart = create_line_chart(
+        df["timestamp"],
+        df["temperature"],
+        "Temperature Trend Over Time",
+        "Timestamp",
+        "Temperature (C)"
+    )
+    st.pyplot(temp_chart)
+
+if trend_option in ["Humidity Trend", "Both"]:
+    st.subheader("Humidity Trend Over Time")
+    hum_chart = create_line_chart(
+        df["timestamp"],
+        df["humidity"],
+        "Humidity Trend Over Time",
+        "Timestamp",
+        "Humidity"
+    )
+    st.pyplot(hum_chart)
+
+
+# =====================================================
+# Section 3: Model Performance Metrics
+# =====================================================
+st.header("3. Model Performance Metrics")
+
+st.markdown(
+    """
+    <div class="section-card">
+    The model used in this dashboard is Random Forest Regressor. It predicts temperature using humidity and time-based features.
+    The model is evaluated using MAE, RMSE, and R2 Score.
+    </div>
+    """,
+    unsafe_allow_html=True
+)
+
+metric_col1, metric_col2, metric_col3 = st.columns(3)
+
+with metric_col1:
     st.metric("MAE", f"{mae:.3f}")
 
-with m2:
+with metric_col2:
     st.metric("RMSE", f"{rmse:.3f}")
 
-with m3:
+with metric_col3:
     st.metric("R2 Score", f"{r2:.3f}")
 
-st.divider()
+chart_col, table_col = st.columns([1.2, 1])
 
-
-# =====================================================
-# Helper chart functions
-# =====================================================
-def line_chart(x, y, title, xlabel, ylabel):
-    fig, ax = plt.subplots(figsize=(12, 5))
-    ax.plot(x, y, linewidth=1.6)
-    ax.set_title(title)
-    ax.set_xlabel(xlabel)
-    ax.set_ylabel(ylabel)
-    ax.tick_params(axis="x", rotation=35)
-    ax.grid(True, alpha=0.3)
-    fig.tight_layout()
-    return fig
-
-
-def scatter_chart(x, y, title, xlabel, ylabel):
-    fig, ax = plt.subplots(figsize=(8, 5))
-    ax.scatter(x, y, alpha=0.75)
-    ax.set_title(title)
-    ax.set_xlabel(xlabel)
-    ax.set_ylabel(ylabel)
-    ax.grid(True, alpha=0.3)
-    fig.tight_layout()
-    return fig
-
-
-# =====================================================
-# Tabs
-# =====================================================
-tab1, tab2, tab3, tab4, tab5 = st.tabs([
-    "Dataset Overview",
-    "Sensor Trends",
-    "EDA Analysis",
-    "ML Results",
-    "Prediction"
-])
-
-
-# =====================================================
-# Tab 1: Dataset Overview
-# =====================================================
-with tab1:
-    st.header("Dataset Overview")
-
-    st.markdown(
-        """
-        <div class="info-card">
-        This dataset contains IoT readings from a weather sensor. The main columns used in this project are timestamp, humidity, and temperature. The timestamp column was converted into time-based features to help the machine learning model learn daily and monthly patterns.
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-
-    c1, c2 = st.columns([1.15, 1])
-
-    with c1:
-        st.subheader("Sample Data")
-
-        sample_data = df.head(15).copy()
-
-        if "timestamp" in sample_data.columns:
-            sample_data["timestamp"] = sample_data["timestamp"].dt.strftime("%Y-%m-%d %H:%M")
-
-        sample_data = sample_data.rename(columns={
-            "id": "ID",
-            "timestamp": "Timestamp",
-            "humidity": "Humidity",
-            "temperature": "Temperature",
-            "latitude": "Latitude",
-            "longitude": "Longitude",
-            "sensor_type": "Sensor Type",
-            "sensor_id": "Sensor ID",
-            "hour": "Hour",
-            "day_of_month": "Day of Month",
-            "month": "Month",
-            "day_of_week": "Day of Week"
-        })
-
-        number_cols = sample_data.select_dtypes(include=["float64", "float32"]).columns
-        sample_data[number_cols] = sample_data[number_cols].round(2)
-
-        st.dataframe(
-            sample_data,
-            use_container_width=True,
-            hide_index=True
-        )
-
-    with c2:
-        st.subheader("Basic Statistics")
-
-        stats_table = df[[
-            "humidity",
-            "temperature",
-            "hour",
-            "day_of_month",
-            "month",
-            "day_of_week"
-        ]].describe().round(2)
-
-        stats_table = stats_table.rename(columns=feature_names)
-        stats_table.index = stats_table.index.map({
-            "count": "Count",
-            "mean": "Mean",
-            "std": "Std",
-            "min": "Min",
-            "25%": "25%",
-            "50%": "50%",
-            "75%": "75%",
-            "max": "Max"
-        })
-
-        st.dataframe(
-            stats_table,
-            use_container_width=True
-        )
-
-    st.subheader("Missing Values")
-
-    missing = df.isnull().sum().reset_index()
-    missing.columns = ["Column", "Missing Values"]
-    missing["Column"] = missing["Column"].replace({
-        "id": "ID",
-        "timestamp": "Timestamp",
-        "humidity": "Humidity",
-        "temperature": "Temperature",
-        "latitude": "Latitude",
-        "longitude": "Longitude",
-        "sensor_type": "Sensor Type",
-        "sensor_id": "Sensor ID",
-        "hour": "Hour",
-        "day_of_month": "Day of Month",
-        "month": "Month",
-        "day_of_week": "Day of Week"
-    })
-
-    st.dataframe(
-        missing,
-        use_container_width=True,
-        hide_index=True
-    )
-
-
-# =====================================================
-# Tab 2: Sensor Trends
-# =====================================================
-with tab2:
-    st.header("Sensor Data Trends")
-
-    st.markdown(
-        """
-        <div class="info-card">
-        These charts show how temperature and humidity changed over time. This helps us understand the behavior of the IoT sensor readings before applying machine learning.
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-
-    chart_choice = st.radio(
-        "Choose trend chart",
-        ["Temperature", "Humidity", "Both"],
-        horizontal=True
-    )
-
-    if chart_choice in ["Temperature", "Both"]:
-        st.subheader("Temperature Trend Over Time")
-        fig_temp = line_chart(
-            df["timestamp"],
-            df["temperature"],
-            "Temperature Trend Over Time",
-            "Timestamp",
-            "Temperature (C)"
-        )
-        st.pyplot(fig_temp)
-
-    if chart_choice in ["Humidity", "Both"]:
-        st.subheader("Humidity Trend Over Time")
-        fig_hum = line_chart(
-            df["timestamp"],
-            df["humidity"],
-            "Humidity Trend Over Time",
-            "Timestamp",
-            "Humidity"
-        )
-        st.pyplot(fig_hum)
-
-
-# =====================================================
-# Tab 3: EDA Analysis
-# =====================================================
-with tab3:
-    st.header("Exploratory Data Analysis")
-
-    st.markdown(
-        """
-        <div class="info-card">
-        EDA is used to find patterns in the dataset. The scatter plot and correlation matrix show that humidity and time features are useful for predicting temperature.
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-
-    c1, c2 = st.columns(2)
-
-    with c1:
-        st.subheader("Humidity vs Temperature")
-        fig_scatter = scatter_chart(
-            df["humidity"],
-            df["temperature"],
-            "Relationship Between Humidity and Temperature",
-            "Humidity",
-            "Temperature (C)"
-        )
-        st.pyplot(fig_scatter)
-
-    with c2:
-        st.subheader("Correlation Matrix")
-
-        corr_columns = ["humidity", "temperature", "hour", "day_of_month", "month", "day_of_week"]
-        corr = df[corr_columns].corr()
-        corr_display_names = [feature_names.get(col, col) for col in corr_columns]
-
-        fig_corr, ax_corr = plt.subplots(figsize=(8, 5))
-        image = ax_corr.imshow(corr, aspect="auto")
-        ax_corr.set_xticks(range(len(corr_columns)))
-        ax_corr.set_yticks(range(len(corr_columns)))
-        ax_corr.set_xticklabels(corr_display_names, rotation=40, ha="right")
-        ax_corr.set_yticklabels(corr_display_names)
-
-        for i in range(len(corr_columns)):
-            for j in range(len(corr_columns)):
-                ax_corr.text(
-                    j,
-                    i,
-                    f"{corr.iloc[i, j]:.2f}",
-                    ha="center",
-                    va="center"
-                )
-
-        ax_corr.set_title("Correlation Between Features")
-        fig_corr.colorbar(image)
-        fig_corr.tight_layout()
-        st.pyplot(fig_corr)
-
-    st.subheader("Feature Importance")
-
-    feature_importance_clean = feature_importance.copy()
-    feature_importance_clean["Feature"] = feature_importance_clean["Feature"].replace(feature_names)
-    feature_importance_clean["Importance"] = feature_importance_clean["Importance"].round(4)
-
-    st.dataframe(
-        feature_importance_clean,
-        use_container_width=True,
-        hide_index=True
-    )
-
-
-# =====================================================
-# Tab 4: ML Results
-# =====================================================
-with tab4:
-    st.header("Machine Learning Results")
-
-    st.markdown(
-        """
-        <div class="info-card">
-        A Random Forest Regressor was trained to predict temperature using humidity and time-based features. The model was evaluated using MAE, RMSE, and R2 Score.
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-
-    a, b, c = st.columns(3)
-
-    with a:
-        st.metric("Mean Absolute Error", f"{mae:.3f}")
-
-    with b:
-        st.metric("Root Mean Squared Error", f"{rmse:.3f}")
-
-    with c:
-        st.metric("R2 Score", f"{r2:.3f}")
-
+with chart_col:
     st.subheader("Actual vs Predicted Temperature")
+    pred_chart = create_actual_vs_predicted_chart(y_test, y_pred)
+    st.pyplot(pred_chart)
 
-    fig_pred, ax_pred = plt.subplots(figsize=(8, 5))
-    ax_pred.scatter(y_test, y_pred, alpha=0.75)
-
-    min_val = min(float(y_test.min()), float(y_pred.min()))
-    max_val = max(float(y_test.max()), float(y_pred.max()))
-
-    ax_pred.plot(
-        [min_val, max_val],
-        [min_val, max_val],
-        linestyle="--",
-        linewidth=2
-    )
-
-    ax_pred.set_title("Actual vs Predicted Temperature")
-    ax_pred.set_xlabel("Actual Temperature (C)")
-    ax_pred.set_ylabel("Predicted Temperature (C)")
-    ax_pred.grid(True, alpha=0.3)
-    fig_pred.tight_layout()
-    st.pyplot(fig_pred)
-
-    st.subheader("Prediction Results Sample")
-
-    results_clean = results.head(25).copy()
-    results_clean["Actual Temperature"] = results_clean["Actual Temperature"].round(2)
-    results_clean["Predicted Temperature"] = results_clean["Predicted Temperature"].round(2)
-
+with table_col:
+    st.subheader("Prediction Sample")
     st.dataframe(
-        results_clean,
+        results.head(12),
         use_container_width=True,
         hide_index=True
     )
 
 
 # =====================================================
-# Tab 5: Prediction
+# Section 4: Predicted Sensor Values
 # =====================================================
-with tab5:
-    st.header("Temperature Prediction")
+st.header("4. Predicted Sensor Value")
 
-    st.markdown(
-        """
-        <div class="info-card">
-        Use the controls in the left sidebar to enter humidity and time values. Then click the prediction button to generate a new temperature prediction.
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
+st.markdown(
+    """
+    <div class="section-card">
+    Use the controls on the left sidebar to enter humidity and time values. 
+    After clicking the prediction button, the dashboard shows the predicted temperature.
+    </div>
+    """,
+    unsafe_allow_html=True
+)
 
-    if "prediction" in st.session_state:
-        st.subheader("Latest Prediction")
+if "prediction" in st.session_state:
+    pred_col1, pred_col2 = st.columns([1, 1])
 
-        p1, p2 = st.columns([1, 1])
-
-        with p1:
-            st.markdown(
-                f"""
-                <div class="prediction-box">
-                    Predicted Temperature: {st.session_state["prediction"]:.2f} C
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
-
-        with p2:
-            st.markdown(
-                "<div class='small-card'><b>Input Values Used</b></div>",
-                unsafe_allow_html=True
-            )
-
-            input_table = pd.DataFrame([st.session_state["prediction_inputs"]])
-
-            st.dataframe(
-                input_table,
-                use_container_width=True,
-                hide_index=True
-            )
-
-    else:
+    with pred_col1:
         st.markdown(
-            """
-            <div class="warning-box">
-            No prediction has been generated yet. Use the sidebar and click Predict Temperature.
+            f"""
+            <div class="prediction-card">
+                Predicted Temperature: {st.session_state["prediction"]:.2f} C
             </div>
             """,
             unsafe_allow_html=True
         )
 
+    with pred_col2:
+        input_table = pd.DataFrame([st.session_state["inputs"]])
+        st.dataframe(
+            input_table,
+            use_container_width=True,
+            hide_index=True
+        )
+else:
+    st.markdown(
+        """
+        <div class="warning-card">
+        No prediction has been generated yet. Use the left sidebar and click Predict Temperature.
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
+
+# =====================================================
+# Footer
+# =====================================================
 st.divider()
-st.caption("IT351 - IoT Sensor Data Prediction Dashboard using Machine Learning")
+st.caption("IT351 - IoT Sensor Data Prediction Dashboard Using Machine Learning")
