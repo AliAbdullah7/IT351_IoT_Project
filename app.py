@@ -30,10 +30,19 @@ st.set_page_config(
 st.markdown(
     """
     <style>
+    .block-container {
+        max-width: 1180px;
+        padding-top: 2rem;
+        padding-bottom: 2rem;
+        margin-left: auto;
+        margin-right: auto;
+    }
+
     .main-title {
         font-size: 2.4rem;
         font-weight: 800;
         margin-bottom: 0.2rem;
+        text-align: left;
     }
 
     .subtitle {
@@ -41,6 +50,7 @@ st.markdown(
         color: inherit;
         opacity: 0.85;
         margin-bottom: 1.2rem;
+        text-align: left;
     }
 
     .info-card {
@@ -87,6 +97,25 @@ st.markdown(
         border: 1px solid rgba(120, 120, 120, 0.20);
         padding: 14px;
         border-radius: 14px;
+    }
+
+    div[data-testid="stDataFrame"] {
+        border-radius: 12px;
+        overflow: hidden;
+    }
+
+    section[data-testid="stSidebar"] {
+        border-right: 1px solid rgba(120, 120, 120, 0.25);
+    }
+
+    section[data-testid="stSidebar"] .block-container {
+        padding-top: 2rem;
+    }
+
+    .stButton > button {
+        width: 100%;
+        border-radius: 10px;
+        font-weight: 700;
     }
     </style>
     """,
@@ -144,8 +173,7 @@ def train_model(data):
 
     model = RandomForestRegressor(
         n_estimators=200,
-        random_state=42,
-        min_samples_leaf=1
+        random_state=42
     )
 
     model.fit(X_train, y_train)
@@ -176,11 +204,8 @@ model, X_test, y_test, y_pred, mae, rmse, r2, results, feature_importance = trai
 
 
 # =====================================================
-# Sidebar prediction controls
+# Dictionaries
 # =====================================================
-st.sidebar.title("Prediction Controls")
-st.sidebar.write("Enter sensor and time values, then click the button to predict temperature.")
-
 month_names = {
     1: "January",
     2: "February",
@@ -206,13 +231,28 @@ day_names = {
     6: "Sunday"
 }
 
+feature_names = {
+    "humidity": "Humidity",
+    "hour": "Hour of Day",
+    "day_of_month": "Day of Month",
+    "month": "Month",
+    "day_of_week": "Day of Week",
+    "temperature": "Temperature"
+}
+
+
+# =====================================================
+# Sidebar prediction controls
+# =====================================================
+st.sidebar.title("Prediction Controls")
+st.sidebar.write("Enter sensor and time values, then click the button to predict temperature.")
+
 humidity_value = st.sidebar.number_input(
     "Humidity",
     min_value=float(df["humidity"].min()),
     max_value=float(df["humidity"].max()),
     value=float(round(df["humidity"].mean(), 2)),
-    step=0.5,
-    help="Humidity sensor value from the IoT device."
+    step=0.5
 )
 
 hour_value = st.sidebar.selectbox(
@@ -244,7 +284,7 @@ day_week_value = st.sidebar.selectbox(
     format_func=lambda x: day_names[x]
 )
 
-predict_clicked = st.sidebar.button("Predict Temperature", use_container_width=True)
+predict_clicked = st.sidebar.button("Predict Temperature")
 
 if predict_clicked:
     input_data = pd.DataFrame({
@@ -258,7 +298,7 @@ if predict_clicked:
     st.session_state["prediction"] = float(model.predict(input_data)[0])
     st.session_state["prediction_inputs"] = {
         "Humidity": humidity_value,
-        "Hour": f"{hour_value:02d}:00",
+        "Hour of Day": f"{hour_value:02d}:00",
         "Day of Month": day_value,
         "Month": month_names[month_value],
         "Day of Week": day_names[day_week_value]
@@ -368,6 +408,9 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
 ])
 
 
+# =====================================================
+# Tab 1: Dataset Overview
+# =====================================================
 with tab1:
     st.header("Dataset Overview")
 
@@ -380,25 +423,98 @@ with tab1:
         unsafe_allow_html=True
     )
 
-    c1, c2 = st.columns([1.1, 1])
+    c1, c2 = st.columns([1.15, 1])
 
     with c1:
         st.subheader("Sample Data")
-        st.dataframe(df.head(15), use_container_width=True)
+
+        sample_data = df.head(15).copy()
+
+        if "timestamp" in sample_data.columns:
+            sample_data["timestamp"] = sample_data["timestamp"].dt.strftime("%Y-%m-%d %H:%M")
+
+        sample_data = sample_data.rename(columns={
+            "id": "ID",
+            "timestamp": "Timestamp",
+            "humidity": "Humidity",
+            "temperature": "Temperature",
+            "latitude": "Latitude",
+            "longitude": "Longitude",
+            "sensor_type": "Sensor Type",
+            "sensor_id": "Sensor ID",
+            "hour": "Hour",
+            "day_of_month": "Day of Month",
+            "month": "Month",
+            "day_of_week": "Day of Week"
+        })
+
+        number_cols = sample_data.select_dtypes(include=["float64", "float32"]).columns
+        sample_data[number_cols] = sample_data[number_cols].round(2)
+
+        st.dataframe(
+            sample_data,
+            use_container_width=True,
+            hide_index=True
+        )
 
     with c2:
         st.subheader("Basic Statistics")
+
+        stats_table = df[[
+            "humidity",
+            "temperature",
+            "hour",
+            "day_of_month",
+            "month",
+            "day_of_week"
+        ]].describe().round(2)
+
+        stats_table = stats_table.rename(columns=feature_names)
+        stats_table.index = stats_table.index.map({
+            "count": "Count",
+            "mean": "Mean",
+            "std": "Std",
+            "min": "Min",
+            "25%": "25%",
+            "50%": "50%",
+            "75%": "75%",
+            "max": "Max"
+        })
+
         st.dataframe(
-            df[["humidity", "temperature", "hour", "day_of_month", "month", "day_of_week"]].describe(),
+            stats_table,
             use_container_width=True
         )
 
     st.subheader("Missing Values")
+
     missing = df.isnull().sum().reset_index()
     missing.columns = ["Column", "Missing Values"]
-    st.dataframe(missing, use_container_width=True)
+    missing["Column"] = missing["Column"].replace({
+        "id": "ID",
+        "timestamp": "Timestamp",
+        "humidity": "Humidity",
+        "temperature": "Temperature",
+        "latitude": "Latitude",
+        "longitude": "Longitude",
+        "sensor_type": "Sensor Type",
+        "sensor_id": "Sensor ID",
+        "hour": "Hour",
+        "day_of_month": "Day of Month",
+        "month": "Month",
+        "day_of_week": "Day of Week"
+    })
+
+    st.dataframe(
+        missing,
+        use_container_width=True,
+        hide_index=True
+    )
 
 
+# =====================================================
+# Tab 2: Sensor Trends
+# =====================================================
 with tab2:
     st.header("Sensor Data Trends")
 
@@ -440,6 +556,9 @@ with tab2:
         st.pyplot(fig_hum)
 
 
+# =====================================================
+# Tab 3: EDA Analysis
+# =====================================================
 with tab3:
     st.header("Exploratory Data Analysis")
 
@@ -470,13 +589,14 @@ with tab3:
 
         corr_columns = ["humidity", "temperature", "hour", "day_of_month", "month", "day_of_week"]
         corr = df[corr_columns].corr()
+        corr_display_names = [feature_names.get(col, col) for col in corr_columns]
 
         fig_corr, ax_corr = plt.subplots(figsize=(8, 5))
         image = ax_corr.imshow(corr, aspect="auto")
         ax_corr.set_xticks(range(len(corr_columns)))
         ax_corr.set_yticks(range(len(corr_columns)))
-        ax_corr.set_xticklabels(corr_columns, rotation=40, ha="right")
-        ax_corr.set_yticklabels(corr_columns)
+        ax_corr.set_xticklabels(corr_display_names, rotation=40, ha="right")
+        ax_corr.set_yticklabels(corr_display_names)
 
         for i in range(len(corr_columns)):
             for j in range(len(corr_columns)):
@@ -494,9 +614,21 @@ with tab3:
         st.pyplot(fig_corr)
 
     st.subheader("Feature Importance")
-    st.dataframe(feature_importance, use_container_width=True)
+
+    feature_importance_clean = feature_importance.copy()
+    feature_importance_clean["Feature"] = feature_importance_clean["Feature"].replace(feature_names)
+    feature_importance_clean["Importance"] = feature_importance_clean["Importance"].round(4)
+
+    st.dataframe(
+        feature_importance_clean,
+        use_container_width=True,
+        hide_index=True
+    )
 
 
+# =====================================================
+# Tab 4: ML Results
+# =====================================================
 with tab4:
     st.header("Machine Learning Results")
 
@@ -543,9 +675,21 @@ with tab4:
     st.pyplot(fig_pred)
 
     st.subheader("Prediction Results Sample")
-    st.dataframe(results.head(25), use_container_width=True)
+
+    results_clean = results.head(25).copy()
+    results_clean["Actual Temperature"] = results_clean["Actual Temperature"].round(2)
+    results_clean["Predicted Temperature"] = results_clean["Predicted Temperature"].round(2)
+
+    st.dataframe(
+        results_clean,
+        use_container_width=True,
+        hide_index=True
+    )
 
 
+# =====================================================
+# Tab 5: Prediction
+# =====================================================
 with tab5:
     st.header("Temperature Prediction")
 
@@ -578,9 +722,13 @@ with tab5:
                 "<div class='small-card'><b>Input Values Used</b></div>",
                 unsafe_allow_html=True
             )
+
+            input_table = pd.DataFrame([st.session_state["prediction_inputs"]])
+
             st.dataframe(
-                pd.DataFrame([st.session_state["prediction_inputs"]]),
-                use_container_width=True
+                input_table,
+                use_container_width=True,
+                hide_index=True
             )
 
     else:
