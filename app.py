@@ -42,12 +42,14 @@ st.markdown(
         font-size: 2.5rem;
         font-weight: 800;
         margin-bottom: 0.3rem;
+        text-align: left;
     }
 
     .subtitle {
         font-size: 1.05rem;
         opacity: 0.85;
         margin-bottom: 1.5rem;
+        text-align: left;
     }
 
     .section-card {
@@ -57,6 +59,7 @@ st.markdown(
         padding: 18px 20px;
         margin: 12px 0 20px 0;
         line-height: 1.7;
+        text-align: left;
     }
 
     .prediction-card {
@@ -67,6 +70,7 @@ st.markdown(
         margin-top: 14px;
         font-size: 1.25rem;
         font-weight: 700;
+        text-align: left;
     }
 
     .warning-card {
@@ -75,6 +79,7 @@ st.markdown(
         border-radius: 16px;
         padding: 18px;
         margin-top: 14px;
+        text-align: left;
     }
 
     div[data-testid="stMetric"] {
@@ -82,6 +87,7 @@ st.markdown(
         border: 1px solid rgba(120, 120, 120, 0.22);
         padding: 16px;
         border-radius: 16px;
+        text-align: left;
     }
 
     section[data-testid="stSidebar"] {
@@ -93,6 +99,28 @@ st.markdown(
         border-radius: 10px;
         font-weight: 700;
         height: 3rem;
+    }
+
+    table {
+        width: 100%;
+        direction: ltr;
+        text-align: left;
+        border-collapse: collapse;
+    }
+
+    th {
+        text-align: left !important;
+        font-weight: 700 !important;
+        padding: 10px !important;
+    }
+
+    td {
+        text-align: left !important;
+        padding: 10px !important;
+    }
+
+    div[data-testid="stTable"] {
+        direction: ltr;
     }
     </style>
     """,
@@ -217,6 +245,34 @@ def create_actual_vs_predicted_chart(y_test, y_pred):
     fig.tight_layout()
 
     return fig
+
+
+def show_clean_table(dataframe):
+    clean_df = dataframe.copy()
+
+    styled_table = (
+        clean_df.style
+        .set_properties(**{
+            "text-align": "left"
+        })
+        .set_table_styles([
+            {
+                "selector": "th",
+                "props": [
+                    ("text-align", "left"),
+                    ("font-weight", "700")
+                ]
+            },
+            {
+                "selector": "td",
+                "props": [
+                    ("text-align", "left")
+                ]
+            }
+        ])
+    )
+
+    st.table(styled_table)
 
 
 # =====================================================
@@ -469,11 +525,7 @@ with chart_col:
 
 with table_col:
     st.subheader("Prediction Sample")
-    st.dataframe(
-        results.head(12),
-        use_container_width=True,
-        hide_index=True
-    )
+    show_clean_table(results.head(12))
 
 
 # =====================================================
@@ -506,11 +558,7 @@ if "prediction" in st.session_state:
 
     with pred_col2:
         input_table = pd.DataFrame([st.session_state["inputs"]])
-        st.dataframe(
-            input_table,
-            use_container_width=True,
-            hide_index=True
-        )
+        show_clean_table(input_table)
 else:
     st.markdown(
         """
